@@ -34,6 +34,12 @@ const (
 	PullRequestShortStatusOPEN   PullRequestShortStatus = "OPEN"
 )
 
+// Defines values for TeamDeactivateRequestReplacementStrategy.
+const (
+	AuthorTeam TeamDeactivateRequestReplacementStrategy = "author_team"
+	SameTeam   TeamDeactivateRequestReplacementStrategy = "same_team"
+)
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	Error struct {
@@ -53,8 +59,8 @@ type PullRequest struct {
 	CreatedAt         *time.Time        `json:"createdAt"`
 	MergedAt          *time.Time        `json:"mergedAt"`
 	PullRequestId     string            `json:"pull_request_id"`
-	PullRequestName string            `json:"pull_request_name"`
-	Status          PullRequestStatus `json:"status"`
+	PullRequestName   string            `json:"pull_request_name"`
+	Status            PullRequestStatus `json:"status"`
 }
 
 // PullRequestStatus defines model for PullRequest.Status.
@@ -71,10 +77,42 @@ type PullRequestShort struct {
 // PullRequestShortStatus defines model for PullRequestShort.Status.
 type PullRequestShortStatus string
 
+// ReviewerStat defines model for ReviewerStat.
+type ReviewerStat struct {
+	ReviewsCount int64  `json:"reviews_count"`
+	UserId       string `json:"user_id"`
+}
+
+// ReviewerStatsResponse defines model for ReviewerStatsResponse.
+type ReviewerStatsResponse struct {
+	Stats        []ReviewerStat `json:"stats"`
+	TotalReviews int64          `json:"total_reviews"`
+}
+
 // Team defines model for Team.
 type Team struct {
 	Members  []TeamMember `json:"members"`
 	TeamName string       `json:"team_name"`
+}
+
+// TeamDeactivateRequest defines model for TeamDeactivateRequest.
+type TeamDeactivateRequest struct {
+	// ReplacementStrategy Стратегия поиска замен (по умолчанию same_team)
+	ReplacementStrategy *TeamDeactivateRequestReplacementStrategy `json:"replacement_strategy,omitempty"`
+	TeamName            string                                    `json:"team_name"`
+}
+
+// TeamDeactivateRequestReplacementStrategy Стратегия поиска замен (по умолчанию same_team)
+type TeamDeactivateRequestReplacementStrategy string
+
+// TeamDeactivateResult defines model for TeamDeactivateResult.
+type TeamDeactivateResult struct {
+	DeactivatedUsers int64 `json:"deactivated_users"`
+	ReassignedPrs    int64 `json:"reassigned_prs"`
+
+	// SkippedPrs PR, для которых не удалось найти замену
+	SkippedPrs int64  `json:"skipped_prs"`
+	TeamName   string `json:"team_name"`
 }
 
 // TeamMember defines model for TeamMember.
@@ -145,6 +183,9 @@ type PostPullRequestReassignJSONRequestBody PostPullRequestReassignJSONBody
 
 // PostTeamAddJSONRequestBody defines body for PostTeamAdd for application/json ContentType.
 type PostTeamAddJSONRequestBody = Team
+
+// PostTeamDeactivateJSONRequestBody defines body for PostTeamDeactivate for application/json ContentType.
+type PostTeamDeactivateJSONRequestBody = TeamDeactivateRequest
 
 // PostUsersSetIsActiveJSONRequestBody defines body for PostUsersSetIsActive for application/json ContentType.
 type PostUsersSetIsActiveJSONRequestBody PostUsersSetIsActiveJSONBody

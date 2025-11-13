@@ -11,6 +11,8 @@ type TeamUseCase interface {
 	CreateTeam(ctx context.Context, team *entity2.Team) error
 	// GetTeam получает команду с участниками
 	GetTeam(ctx context.Context, teamName string) (*entity2.Team, error)
+	// DeactivateTeam массово деактивирует пользователей команды с безопасным переназначением
+	DeactivateTeam(ctx context.Context, teamName string, strategy entity2.ReplacementStrategy) (*entity2.TeamDeactivateResult, error)
 }
 
 // UserUseCase интерфейс для бизнес-логики пользователей
@@ -29,4 +31,6 @@ type PullRequestUseCase interface {
 	MergePullRequest(ctx context.Context, prID string) (*entity2.PullRequest, error)
 	// ReassignReviewer переназначает конкретного ревьювера на другого из его команды
 	ReassignReviewer(ctx context.Context, prID, oldUserID string) (*entity2.PullRequest, string, error)
+	// GetReviewerStats возвращает статистику назначений ревьюверов
+	GetReviewerStats(ctx context.Context) ([]entity2.ReviewerStat, int64, error)
 }

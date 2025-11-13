@@ -104,10 +104,18 @@ type ClientInterface interface {
 
 	PostPullRequestReassign(ctx context.Context, body PostPullRequestReassignJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetStatsReviewers request
+	GetStatsReviewers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostTeamAddWithBody request with any body
 	PostTeamAddWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostTeamAdd(ctx context.Context, body PostTeamAddJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostTeamDeactivateWithBody request with any body
+	PostTeamDeactivateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostTeamDeactivate(ctx context.Context, body PostTeamDeactivateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTeamGet request
 	GetTeamGet(ctx context.Context, params *GetTeamGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -193,6 +201,18 @@ func (c *Client) PostPullRequestReassign(ctx context.Context, body PostPullReque
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetStatsReviewers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStatsReviewersRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) PostTeamAddWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostTeamAddRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -207,6 +227,30 @@ func (c *Client) PostTeamAddWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) PostTeamAdd(ctx context.Context, body PostTeamAddJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostTeamAddRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostTeamDeactivateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostTeamDeactivateRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostTeamDeactivate(ctx context.Context, body PostTeamDeactivateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostTeamDeactivateRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -385,6 +429,33 @@ func NewPostPullRequestReassignRequestWithBody(server string, contentType string
 	return req, nil
 }
 
+// NewGetStatsReviewersRequest generates requests for GetStatsReviewers
+func NewGetStatsReviewersRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/stats/reviewers")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostTeamAddRequest calls the generic PostTeamAdd builder with application/json body
 func NewPostTeamAddRequest(server string, body PostTeamAddJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -406,6 +477,46 @@ func NewPostTeamAddRequestWithBody(server string, contentType string, body io.Re
 	}
 
 	operationPath := fmt.Sprintf("/team/add")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostTeamDeactivateRequest calls the generic PostTeamDeactivate builder with application/json body
+func NewPostTeamDeactivateRequest(server string, body PostTeamDeactivateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostTeamDeactivateRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostTeamDeactivateRequestWithBody generates requests for PostTeamDeactivate with any type of body
+func NewPostTeamDeactivateRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/team/deactivate")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -613,10 +724,18 @@ type ClientWithResponsesInterface interface {
 
 	PostPullRequestReassignWithResponse(ctx context.Context, body PostPullRequestReassignJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestReassignResponse, error)
 
+	// GetStatsReviewersWithResponse request
+	GetStatsReviewersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatsReviewersResponse, error)
+
 	// PostTeamAddWithBodyWithResponse request with any body
 	PostTeamAddWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostTeamAddResponse, error)
 
 	PostTeamAddWithResponse(ctx context.Context, body PostTeamAddJSONRequestBody, reqEditors ...RequestEditorFn) (*PostTeamAddResponse, error)
+
+	// PostTeamDeactivateWithBodyWithResponse request with any body
+	PostTeamDeactivateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostTeamDeactivateResponse, error)
+
+	PostTeamDeactivateWithResponse(ctx context.Context, body PostTeamDeactivateJSONRequestBody, reqEditors ...RequestEditorFn) (*PostTeamDeactivateResponse, error)
 
 	// GetTeamGetWithResponse request
 	GetTeamGetWithResponse(ctx context.Context, params *GetTeamGetParams, reqEditors ...RequestEditorFn) (*GetTeamGetResponse, error)
@@ -710,6 +829,28 @@ func (r PostPullRequestReassignResponse) StatusCode() int {
 	return 0
 }
 
+type GetStatsReviewersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ReviewerStatsResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStatsReviewersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStatsReviewersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PostTeamAddResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -729,6 +870,30 @@ func (r PostTeamAddResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostTeamAddResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PostTeamDeactivateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TeamDeactivateResult
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostTeamDeactivateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostTeamDeactivateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -765,6 +930,7 @@ type GetUsersGetReviewResponse struct {
 		PullRequests []PullRequestShort `json:"pull_requests"`
 		UserId       string             `json:"user_id"`
 	}
+	JSON404 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -860,6 +1026,15 @@ func (c *ClientWithResponses) PostPullRequestReassignWithResponse(ctx context.Co
 	return ParsePostPullRequestReassignResponse(rsp)
 }
 
+// GetStatsReviewersWithResponse request returning *GetStatsReviewersResponse
+func (c *ClientWithResponses) GetStatsReviewersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatsReviewersResponse, error) {
+	rsp, err := c.GetStatsReviewers(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStatsReviewersResponse(rsp)
+}
+
 // PostTeamAddWithBodyWithResponse request with arbitrary body returning *PostTeamAddResponse
 func (c *ClientWithResponses) PostTeamAddWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostTeamAddResponse, error) {
 	rsp, err := c.PostTeamAddWithBody(ctx, contentType, body, reqEditors...)
@@ -875,6 +1050,23 @@ func (c *ClientWithResponses) PostTeamAddWithResponse(ctx context.Context, body 
 		return nil, err
 	}
 	return ParsePostTeamAddResponse(rsp)
+}
+
+// PostTeamDeactivateWithBodyWithResponse request with arbitrary body returning *PostTeamDeactivateResponse
+func (c *ClientWithResponses) PostTeamDeactivateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostTeamDeactivateResponse, error) {
+	rsp, err := c.PostTeamDeactivateWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostTeamDeactivateResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostTeamDeactivateWithResponse(ctx context.Context, body PostTeamDeactivateJSONRequestBody, reqEditors ...RequestEditorFn) (*PostTeamDeactivateResponse, error) {
+	rsp, err := c.PostTeamDeactivate(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostTeamDeactivateResponse(rsp)
 }
 
 // GetTeamGetWithResponse request returning *GetTeamGetResponse
@@ -1034,6 +1226,32 @@ func ParsePostPullRequestReassignResponse(rsp *http.Response) (*PostPullRequestR
 	return response, nil
 }
 
+// ParseGetStatsReviewersResponse parses an HTTP response from a GetStatsReviewersWithResponse call
+func ParseGetStatsReviewersResponse(rsp *http.Response) (*GetStatsReviewersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStatsReviewersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReviewerStatsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePostTeamAddResponse parses an HTTP response from a PostTeamAddWithResponse call
 func ParsePostTeamAddResponse(rsp *http.Response) (*PostTeamAddResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1063,6 +1281,46 @@ func ParsePostTeamAddResponse(rsp *http.Response) (*PostTeamAddResponse, error) 
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostTeamDeactivateResponse parses an HTTP response from a PostTeamDeactivateWithResponse call
+func ParsePostTeamDeactivateResponse(rsp *http.Response) (*PostTeamDeactivateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostTeamDeactivateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TeamDeactivateResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 
@@ -1125,6 +1383,13 @@ func ParseGetUsersGetReviewResponse(rsp *http.Response) (*GetUsersGetReviewRespo
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

@@ -1,0 +1,30 @@
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - backend/internal/input/http/gen
+    - backend/pkg/client/http
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - revive
+    - gofumpt
+    - gofmt
+    - goimports
+    - ineffassign
+    - errcheck
+issues:
+  exclude-rules:
+    - path: backend/internal/input/http/gen
+      linters:
+        - gofmt
+        - gofumpt
+        - goimports
+        - revive
+    - path: backend/pkg/client/http
+      linters:
+        - gofmt
+        - gofumpt
+        - goimports
+        - revive

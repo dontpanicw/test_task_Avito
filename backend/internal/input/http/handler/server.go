@@ -87,6 +87,61 @@ func (h *Handler) PostTeamAdd(ctx context.Context, request gen2.PostTeamAddReque
 	return gen2.PostTeamAdd201JSONResponse{Team: genTeam}, nil
 }
 
+func (h *Handler) PostTeamDeactivate(ctx context.Context, request gen2.PostTeamDeactivateRequestObject) (gen2.PostTeamDeactivateResponseObject, error) {
+	if request.Body == nil {
+		return gen2.PostTeamDeactivate404JSONResponse{
+			Error: struct {
+				Code    gen2.ErrorResponseErrorCode `json:"code"`
+				Message string                      `json:"message"`
+			}{
+				Code:    gen2.NOTFOUND,
+				Message: "request body is required",
+			},
+		}, nil
+	}
+
+	var strategy entity2.ReplacementStrategy
+	if request.Body.ReplacementStrategy != nil {
+		strategy = entity2.ReplacementStrategy(*request.Body.ReplacementStrategy)
+	}
+
+	result, err := h.teamUseCase.DeactivateTeam(ctx, request.Body.TeamName, strategy)
+	if err != nil {
+		if domainErr, ok := err.(*entity2.DomainError); ok {
+			switch domainErr.Code {
+			case entity2.ErrorCodeNotFound:
+				return gen2.PostTeamDeactivate404JSONResponse{
+					Error: struct {
+						Code    gen2.ErrorResponseErrorCode `json:"code"`
+						Message string                      `json:"message"`
+					}{
+						Code:    gen2.NOTFOUND,
+						Message: domainErr.Message,
+					},
+				}, nil
+			case entity2.ErrorCodeNoCandidate:
+				return gen2.PostTeamDeactivate409JSONResponse{
+					Error: struct {
+						Code    gen2.ErrorResponseErrorCode `json:"code"`
+						Message string                      `json:"message"`
+					}{
+						Code:    gen2.NOCANDIDATE,
+						Message: domainErr.Message,
+					},
+				}, nil
+			}
+		}
+		return nil, err
+	}
+
+	return gen2.PostTeamDeactivate200JSONResponse{
+		TeamName:         result.TeamName,
+		DeactivatedUsers: result.DeactivatedUsers,
+		ReassignedPrs:    result.ReassignedPRs,
+		SkippedPrs:       result.SkippedPRs,
+	}, nil
+}
+
 func (h *Handler) GetTeamGet(ctx context.Context, request gen2.GetTeamGetRequestObject) (gen2.GetTeamGetResponseObject, error) {
 	team, err := h.teamUseCase.GetTeam(ctx, request.Params.TeamName)
 	if err != nil {
@@ -292,7 +347,17 @@ func (h *Handler) PostPullRequestReassign(ctx context.Context, request gen2.Post
 func (h *Handler) GetUsersGetReview(ctx context.Context, request gen2.GetUsersGetReviewRequestObject) (gen2.GetUsersGetReviewResponseObject, error) {
 	prs, err := h.userUseCase.GetUserReviews(ctx, request.Params.UserId)
 	if err != nil {
-		// Возвращаем ошибку, так как в спецификации нет 404 для этого эндпоинта
+		if domainErr, ok := err.(*entity2.DomainError); ok && domainErr.Code == entity2.ErrorCodeNotFound {
+			return gen2.GetUsersGetReview404JSONResponse{
+				Error: struct {
+					Code    gen2.ErrorResponseErrorCode `json:"code"`
+					Message string                      `json:"message"`
+				}{
+					Code:    gen2.NOTFOUND,
+					Message: domainErr.Message,
+				},
+			}, nil
+		}
 		return nil, err
 	}
 
@@ -310,6 +375,27 @@ func (h *Handler) GetUsersGetReview(ctx context.Context, request gen2.GetUsersGe
 		UserId:       request.Params.UserId,
 		PullRequests: genPRs,
 	}, nil
+}
+
+func (h *Handler) GetStatsReviewers(ctx context.Context, _ gen2.GetStatsReviewersRequestObject) (gen2.GetStatsReviewersResponseObject, error) {
+	stats, total, err := h.pullRequestUseCase.GetReviewerStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	response := gen2.ReviewerStatsResponse{
+		Stats:        make([]gen2.ReviewerStat, 0, len(stats)),
+		TotalReviews: total,
+	}
+
+	for _, stat := range stats {
+		response.Stats = append(response.Stats, gen2.ReviewerStat{
+			UserId:       stat.UserID,
+			ReviewsCount: stat.ReviewsCount,
+		})
+	}
+
+	return gen2.GetStatsReviewers200JSONResponse(response), nil
 }
 
 // Вспомогательные функции для конвертации

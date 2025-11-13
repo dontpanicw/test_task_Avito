@@ -200,3 +200,7 @@ func (uc *pullRequestUseCase) selectReviewers(candidates []*entity2.User, maxRev
 
 	return reviewers
 }
+
+func (uc *pullRequestUseCase) GetReviewerStats(ctx context.Context) ([]entity2.ReviewerStat, int64, error) {
+	return uc.prRepo.GetReviewerStats(ctx)
+}

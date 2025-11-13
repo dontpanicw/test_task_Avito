@@ -57,7 +57,7 @@ func Start(cfg config.Config, logger *zap.Logger) error {
 	repo := postgres.NewPostgresRepository(db)
 
 	// Создаем use cases
-	teamUseCase := usecase2.NewTeamUseCase(repo, repo)
+	teamUseCase := usecase2.NewTeamUseCase(repo, repo, repo)
 	userUseCase := usecase2.NewUserUseCase(repo, repo)
 	prUseCase := usecase2.NewPullRequestUseCase(repo, repo, repo)
 

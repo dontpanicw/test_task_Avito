@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	entity2 "test_task_avito/backend/internal/entity"
 	"test_task_avito/backend/internal/port"
 	"time"
@@ -99,6 +101,14 @@ func (r *PostgresRepository) TeamExists(ctx context.Context, teamName string) (b
 	return exists, err
 }
 
+func (r *PostgresRepository) BulkDeactivateUsersByTeam(ctx context.Context, teamName string) (int64, error) {
+	result, err := r.db.ExecContext(ctx, "UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE team_name = $1 AND is_active = true", teamName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // UserRepository реализация
 func (r *PostgresRepository) CreateOrUpdateUser(ctx context.Context, user *entity2.User) error {
 	_, err := r.db.ExecContext(ctx,
@@ -177,6 +187,40 @@ func (r *PostgresRepository) GetUsersByTeam(ctx context.Context, teamName string
 	rows, err := r.db.QueryContext(ctx,
 		"SELECT user_id, username, team_name, is_active FROM users WHERE team_name = $1 ORDER BY user_id",
 		teamName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*entity2.User
+	for rows.Next() {
+		var user entity2.User
+		if err := rows.Scan(&user.UserID, &user.Username, &user.TeamName, &user.IsActive); err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+
+	return users, rows.Err()
+}
+
+func (r *PostgresRepository) GetAllActiveUsers(ctx context.Context, excludeIDs []string) ([]*entity2.User, error) {
+	query := "SELECT user_id, username, team_name, is_active FROM users WHERE is_active = true"
+	var args []interface{}
+
+	if len(excludeIDs) > 0 {
+		placeholders := make([]string, len(excludeIDs))
+		args = make([]interface{}, len(excludeIDs))
+		for i, id := range excludeIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		query += fmt.Sprintf(" AND user_id NOT IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	query += " ORDER BY user_id"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -345,4 +389,65 @@ func (r *PostgresRepository) GetPullRequestsByReviewer(ctx context.Context, user
 	}
 
 	return prs, rows.Err()
+}
+
+func (r *PostgresRepository) GetOpenPullRequestsByReviewers(ctx context.Context, reviewerIDs []string) ([]string, error) {
+	if len(reviewerIDs) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(reviewerIDs))
+	args := make([]interface{}, len(reviewerIDs))
+	for i, id := range reviewerIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`SELECT DISTINCT pr.pull_request_id
+		FROM pull_requests pr
+		INNER JOIN pull_request_reviewers prr ON pr.pull_request_id = prr.pull_request_id
+		WHERE pr.status = 'OPEN' AND prr.reviewer_id IN (%s)`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prIDs []string
+	for rows.Next() {
+		var prID string
+		if err := rows.Scan(&prID); err != nil {
+			return nil, err
+		}
+		prIDs = append(prIDs, prID)
+	}
+
+	return prIDs, rows.Err()
+}
+
+func (r *PostgresRepository) GetReviewerStats(ctx context.Context) ([]entity2.ReviewerStat, int64, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT reviewer_id, COUNT(*) AS reviews_count
+		FROM pull_request_reviewers
+		GROUP BY reviewer_id
+		ORDER BY reviews_count DESC`)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var stats []entity2.ReviewerStat
+	var total int64
+
+	for rows.Next() {
+		var stat entity2.ReviewerStat
+		if err := rows.Scan(&stat.UserID, &stat.ReviewsCount); err != nil {
+			return nil, 0, err
+		}
+		stats = append(stats, stat)
+		total += stat.ReviewsCount
+	}
+
+	return stats, total, rows.Err()
 }

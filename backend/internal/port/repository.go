@@ -14,6 +14,8 @@ type TeamRepository interface {
 	GetTeam(ctx context.Context, teamName string) (*entity2.Team, error)
 	// TeamExists проверяет существование команды
 	TeamExists(ctx context.Context, teamName string) (bool, error)
+	// BulkDeactivateUsersByTeam деактивирует пользователей команды и возвращает количество обновленных записей
+	BulkDeactivateUsersByTeam(ctx context.Context, teamName string) (int64, error)
 }
 
 // UserRepository интерфейс для работы с пользователями
@@ -28,6 +30,8 @@ type UserRepository interface {
 	UpdateUserIsActive(ctx context.Context, userID string, isActive bool) error
 	// GetUsersByTeam получает всех пользователей команды (включая неактивных)
 	GetUsersByTeam(ctx context.Context, teamName string) ([]*entity2.User, error)
+	// GetAllActiveUsers возвращает всех активных пользователей с возможностью исключения
+	GetAllActiveUsers(ctx context.Context, excludeIDs []string) ([]*entity2.User, error)
 }
 
 // PullRequestRepository интерфейс для работы с Pull Request'ами
@@ -44,4 +48,8 @@ type PullRequestRepository interface {
 	UpdatePullRequestReviewers(ctx context.Context, prID string, reviewers []string) error
 	// GetPullRequestsByReviewer получает PR'ы, где пользователь назначен ревьювером
 	GetPullRequestsByReviewer(ctx context.Context, userID string) ([]*entity2.PullRequest, error)
+	// GetOpenPullRequestsByReviewers возвращает ID открытых PR, где задействованы ревьюверы из списка
+	GetOpenPullRequestsByReviewers(ctx context.Context, reviewerIDs []string) ([]string, error)
+	// GetReviewerStats возвращает статистику по назначенным ревьюверам
+	GetReviewerStats(ctx context.Context) ([]entity2.ReviewerStat, int64, error)
 }

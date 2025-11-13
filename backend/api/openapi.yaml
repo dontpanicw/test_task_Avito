@@ -26,6 +26,57 @@ components:
         type: string
       description: Идентификатор пользователя
   schemas:
+    ReviewerStat:
+      type: object
+      required: [ user_id, reviews_count ]
+      properties:
+        user_id:
+          type: string
+        reviews_count:
+          type: integer
+          format: int64
+          minimum: 0
+    ReviewerStatsResponse:
+      type: object
+      required: [ stats, total_reviews ]
+      properties:
+        stats:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewerStat'
+        total_reviews:
+          type: integer
+          format: int64
+          minimum: 0
+    TeamDeactivateRequest:
+      type: object
+      required: [ team_name ]
+      properties:
+        team_name:
+          type: string
+        replacement_strategy:
+          type: string
+          enum: [same_team, author_team]
+          description: Стратегия поиска замен (по умолчанию same_team)
+    TeamDeactivateResult:
+      type: object
+      required: [ team_name, deactivated_users, reassigned_prs, skipped_prs ]
+      properties:
+        team_name:
+          type: string
+        deactivated_users:
+          type: integer
+          format: int64
+          minimum: 0
+        reassigned_prs:
+          type: integer
+          format: int64
+          minimum: 0
+        skipped_prs:
+          type: integer
+          format: int64
+          minimum: 0
+          description: PR, для которых не удалось найти замену
     ErrorResponse:
       type: object
       required: [error]
@@ -198,6 +249,44 @@ paths:
                     is_active: true
         '404':
           description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /team/deactivate:
+    post:
+      tags: [Teams]
+      summary: Массовая деактивация пользователей команды с безопасным переназначением
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamDeactivateRequest'
+            example:
+              team_name: backend
+              replacement_strategy: same_team
+      responses:
+        '200':
+          description: Операция выполнена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDeactivateResult'
+              example:
+                team_name: backend
+                deactivated_users: 3
+                reassigned_prs: 4
+                skipped_prs: 1
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Переназначение не удалось
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -438,3 +527,29 @@ paths:
                     pull_request_name: Add search
                     author_id: u1
                     status: OPEN
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /stats/reviewers:
+    get:
+      tags: [PullRequests]
+      summary: Получить статистику назначений ревьюверов
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Статистика по ревьюверам
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewerStatsResponse'
+              example:
+                stats:
+                  - user_id: u1
+                    reviews_count: 5
+                  - user_id: u2
+                    reviews_count: 3
+                total_reviews: 8

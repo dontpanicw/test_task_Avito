@@ -25,9 +25,15 @@ type ServerInterface interface {
 	// Переназначить конкретного ревьювера на другого из его команды
 	// (POST /pullRequest/reassign)
 	PostPullRequestReassign(w http.ResponseWriter, r *http.Request)
+	// Получить статистику назначений ревьюверов
+	// (GET /stats/reviewers)
+	GetStatsReviewers(w http.ResponseWriter, r *http.Request)
 	// Создать команду с участниками (создаёт/обновляет пользователей)
 	// (POST /team/add)
 	PostTeamAdd(w http.ResponseWriter, r *http.Request)
+	// Массовая деактивация пользователей команды с безопасным переназначением
+	// (POST /team/deactivate)
+	PostTeamDeactivate(w http.ResponseWriter, r *http.Request)
 	// Получить команду с участниками
 	// (GET /team/get)
 	GetTeamGet(w http.ResponseWriter, r *http.Request, params GetTeamGetParams)
@@ -61,9 +67,21 @@ func (_ Unimplemented) PostPullRequestReassign(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Получить статистику назначений ревьюверов
+// (GET /stats/reviewers)
+func (_ Unimplemented) GetStatsReviewers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Создать команду с участниками (создаёт/обновляет пользователей)
 // (POST /team/add)
 func (_ Unimplemented) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Массовая деактивация пользователей команды с безопасным переназначением
+// (POST /team/deactivate)
+func (_ Unimplemented) PostTeamDeactivate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -154,11 +172,51 @@ func (siw *ServerInterfaceWrapper) PostPullRequestReassign(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// GetStatsReviewers operation middleware
+func (siw *ServerInterfaceWrapper) GetStatsReviewers(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, AdminTokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStatsReviewers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostTeamAdd operation middleware
 func (siw *ServerInterfaceWrapper) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostTeamAdd(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeamDeactivate operation middleware
+func (siw *ServerInterfaceWrapper) PostTeamDeactivate(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, AdminTokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeamDeactivate(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -395,7 +453,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/pullRequest/reassign", wrapper.PostPullRequestReassign)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/stats/reviewers", wrapper.GetStatsReviewers)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/team/add", wrapper.PostTeamAdd)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/team/deactivate", wrapper.PostTeamDeactivate)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/team/get", wrapper.GetTeamGet)
@@ -515,6 +579,22 @@ func (response PostPullRequestReassign409JSONResponse) VisitPostPullRequestReass
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetStatsReviewersRequestObject struct {
+}
+
+type GetStatsReviewersResponseObject interface {
+	VisitGetStatsReviewersResponse(w http.ResponseWriter) error
+}
+
+type GetStatsReviewers200JSONResponse ReviewerStatsResponse
+
+func (response GetStatsReviewers200JSONResponse) VisitGetStatsReviewersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type PostTeamAddRequestObject struct {
 	Body *PostTeamAddJSONRequestBody
 }
@@ -539,6 +619,41 @@ type PostTeamAdd400JSONResponse ErrorResponse
 func (response PostTeamAdd400JSONResponse) VisitPostTeamAddResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostTeamDeactivateRequestObject struct {
+	Body *PostTeamDeactivateJSONRequestBody
+}
+
+type PostTeamDeactivateResponseObject interface {
+	VisitPostTeamDeactivateResponse(w http.ResponseWriter) error
+}
+
+type PostTeamDeactivate200JSONResponse TeamDeactivateResult
+
+func (response PostTeamDeactivate200JSONResponse) VisitPostTeamDeactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostTeamDeactivate404JSONResponse ErrorResponse
+
+func (response PostTeamDeactivate404JSONResponse) VisitPostTeamDeactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PostTeamDeactivate409JSONResponse ErrorResponse
+
+func (response PostTeamDeactivate409JSONResponse) VisitPostTeamDeactivateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -585,6 +700,15 @@ type GetUsersGetReview200JSONResponse struct {
 func (response GetUsersGetReview200JSONResponse) VisitGetUsersGetReviewResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsersGetReview404JSONResponse ErrorResponse
+
+func (response GetUsersGetReview404JSONResponse) VisitGetUsersGetReviewResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -637,9 +761,15 @@ type StrictServerInterface interface {
 	// Переназначить конкретного ревьювера на другого из его команды
 	// (POST /pullRequest/reassign)
 	PostPullRequestReassign(ctx context.Context, request PostPullRequestReassignRequestObject) (PostPullRequestReassignResponseObject, error)
+	// Получить статистику назначений ревьюверов
+	// (GET /stats/reviewers)
+	GetStatsReviewers(ctx context.Context, request GetStatsReviewersRequestObject) (GetStatsReviewersResponseObject, error)
 	// Создать команду с участниками (создаёт/обновляет пользователей)
 	// (POST /team/add)
 	PostTeamAdd(ctx context.Context, request PostTeamAddRequestObject) (PostTeamAddResponseObject, error)
+	// Массовая деактивация пользователей команды с безопасным переназначением
+	// (POST /team/deactivate)
+	PostTeamDeactivate(ctx context.Context, request PostTeamDeactivateRequestObject) (PostTeamDeactivateResponseObject, error)
 	// Получить команду с участниками
 	// (GET /team/get)
 	GetTeamGet(ctx context.Context, request GetTeamGetRequestObject) (GetTeamGetResponseObject, error)
@@ -773,6 +903,30 @@ func (sh *strictHandler) PostPullRequestReassign(w http.ResponseWriter, r *http.
 	}
 }
 
+// GetStatsReviewers operation middleware
+func (sh *strictHandler) GetStatsReviewers(w http.ResponseWriter, r *http.Request) {
+	var request GetStatsReviewersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStatsReviewers(ctx, request.(GetStatsReviewersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStatsReviewers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStatsReviewersResponseObject); ok {
+		if err := validResponse.VisitGetStatsReviewersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostTeamAdd operation middleware
 func (sh *strictHandler) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 	var request PostTeamAddRequestObject
@@ -797,6 +951,37 @@ func (sh *strictHandler) PostTeamAdd(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostTeamAddResponseObject); ok {
 		if err := validResponse.VisitPostTeamAddResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostTeamDeactivate operation middleware
+func (sh *strictHandler) PostTeamDeactivate(w http.ResponseWriter, r *http.Request) {
+	var request PostTeamDeactivateRequestObject
+
+	var body PostTeamDeactivateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostTeamDeactivate(ctx, request.(PostTeamDeactivateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostTeamDeactivate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostTeamDeactivateResponseObject); ok {
+		if err := validResponse.VisitPostTeamDeactivateResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
